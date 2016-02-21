@@ -8,9 +8,11 @@ from django.contrib.auth import authenticate, login
 from django.http import HttpResponseRedirect, HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
+from rango.forms import PageForm
 
 
 def index(request):
+    request.session.set_test_cookie()
     category_list = Category.objects.order_by('-likes')[:5]
     context_dict = {'categories': category_list}
 
@@ -25,7 +27,7 @@ def about(request):
 
 def category(request, category_name_slug):
     # Create a context dictionary which we can pass to the template rendering engine.
-    context_dict = {}
+    context_dict = {'category_name_slug': category_name_slug}
 
     try:
         # Can we find a category name slug with the given name?
@@ -50,6 +52,29 @@ def category(request, category_name_slug):
 
     # Go render the response and return it to the client.
     return render(request, 'rango/category.html', context_dict)
+
+
+def add_page(request, category_name_slug):
+    try:
+        cat = Category.objects.get(slug=category_name_slug)
+    except Category.DoesNotExist:
+        cat = None
+
+    if request.method == 'POST':
+        form = PageForm(request.POST)
+        if form.is_valid():
+            if cat:
+                page = form.save(commit=False)
+                page.category = cat
+                page.save()
+                return category(request, category_name_slug)
+        else:
+            print form.errors
+    else:
+        form = PageForm()
+
+    context_dict = {'form': form, 'category': cat, 'category_name_url': category_name_slug}
+    return render(request, 'rango/add_page.html', context_dict)
 
 
 def add_category(request):
@@ -78,6 +103,9 @@ def add_category(request):
 
 
 def register(request):
+    if request.session.test_cookie_worked():
+        print ">>>> TEST COOKIE WORKED!"
+        request.session.delete_test_cookie()
     # A boolean value for telling the template whether the registration was successful.
     # Set to False initially. Code changes value to True when registration succeeds.
     registered = False
